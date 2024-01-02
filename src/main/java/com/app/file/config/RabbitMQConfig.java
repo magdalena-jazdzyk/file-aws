@@ -1,9 +1,6 @@
 package com.app.file.config;
 
-import org.springframework.amqp.core.Binding;
-import org.springframework.amqp.core.BindingBuilder;
-import org.springframework.amqp.core.DirectExchange;
-import org.springframework.amqp.core.Queue;
+import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.support.converter.Jackson2JsonMessageConverter;
@@ -14,43 +11,56 @@ import org.springframework.context.annotation.Configuration;
 import java.util.HashMap;
 import java.util.Map;
 
+import static com.app.file.constant.RabbitErrorConstant.*;
+import static com.app.file.constant.RabbitQueueConstant.*;
+
 
 @Configuration
 public class RabbitMQConfig {
 
+    @Bean
+    public FanoutExchange deadLetterExchange() {
+        return new FanoutExchange(DLX_EXCHANGE);
+    }
 
-    public static final String UPLOAD_QUEUE = "upload-queue";
-    public static final String DELETE_QUEUE = "delete-queue";
-    public static final String DELAYED_DELETE_QUEUE = "delayed-delete-queue";
-    public static final String MOVE_TO_TRASH_QUEUE = "move-to_trash-queue";
-
-    public static final String RESTORE_QUEUE = "restore-queue";
-
-    public static final String HARD_DELETE_QUEUE = "hard-delete-queue";
-    private static final String REAL_DELETE_QUEUE = "real-delete-queue";
-    private static final String DLX_EXCHANGE = ""; // Pusty string oznacza domyślną wymianę
-    private static final long TTL_30_DAYS = 2592000000L; // 30 dni w milisekundach
+    @Bean
+    public Queue deadLetterQueue() {
+        return QueueBuilder.durable(DLX_QUEUE).build();
+    }
 
 
     @Bean
+    public Binding deadLetterBinding() {
+        return BindingBuilder.bind(deadLetterQueue()).to(deadLetterExchange());
+    }
+
+    @Bean
     public Queue uploadQueue() {
-        return new Queue(UPLOAD_QUEUE);
+        return QueueBuilder.durable(UPLOAD_QUEUE)
+                .deadLetterExchange(DLX_EXCHANGE)
+                .build();
     }
 
     @Bean
     public Queue deleteQueue() {
-        return new Queue(DELETE_QUEUE);
+        return QueueBuilder.durable(DELETE_QUEUE)
+                .deadLetterExchange(DLX_EXCHANGE)
+                .build();
     }
 
     @Bean
     public Queue restoreQueue() {
-        return new Queue(RESTORE_QUEUE);
+        return QueueBuilder.durable(RESTORE_QUEUE)
+                .deadLetterExchange(DLX_EXCHANGE)
+                .build();
     }
 
 
     @Bean
     public Queue moveToTrashQueue() {
-        return new Queue(MOVE_TO_TRASH_QUEUE, true);
+        return QueueBuilder.durable(MOVE_TO_TRASH_QUEUE)
+                .deadLetterExchange(DLX_EXCHANGE)
+                .build();
     }
 
     @Bean
@@ -82,12 +92,9 @@ public class RabbitMQConfig {
         return new Jackson2JsonMessageConverter();
     }
 
-
-
-
     @Bean
     public DirectExchange dlxExchange() {
-        return new DirectExchange(DLX_EXCHANGE);
+        return new DirectExchange(DEAD_LETTER_EXCHANGE);
     }
 
     @Bean
@@ -96,3 +103,5 @@ public class RabbitMQConfig {
     }
 
 }
+
+

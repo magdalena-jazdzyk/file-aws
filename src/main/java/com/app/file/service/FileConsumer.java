@@ -1,6 +1,6 @@
 package com.app.file.service;
 
-import com.app.file.config.RabbitMQConfig;
+import com.app.file.constant.RabbitQueueConstant;
 import com.app.file.rest.request.*;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -16,7 +16,7 @@ public class FileConsumer {
 
     private final FileService fileService;
 
-    @RabbitListener(queues = RabbitMQConfig.UPLOAD_QUEUE)
+    @RabbitListener(queues = RabbitQueueConstant.UPLOAD_QUEUE)
     public void uploadFileToS3(S3UploadMessage request) {
         try {
             s3Service.putObject(request.getBucketName(), request.getKey(), request.getFileData());
@@ -28,7 +28,7 @@ public class FileConsumer {
         }
     }
 
-    @RabbitListener(queues = RabbitMQConfig.DELETE_QUEUE)
+    @RabbitListener(queues = RabbitQueueConstant.DELETE_QUEUE)
     public void deleteFileFromS3(FileDeleteMessage request) {
         try {
             s3Service.deleteObject(request);
@@ -38,12 +38,12 @@ public class FileConsumer {
         }
     }
 
-    @RabbitListener(queues = RabbitMQConfig.MOVE_TO_TRASH_QUEUE)
+    @RabbitListener(queues = RabbitQueueConstant.MOVE_TO_TRASH_QUEUE)
     public void handleTrashMessage(FileMoveToTrashRequest request) {
         s3Service.moveObjectToTrash(request);
     }
 
-    @RabbitListener(queues = RabbitMQConfig.RESTORE_QUEUE)
+    @RabbitListener(queues = RabbitQueueConstant.RESTORE_QUEUE)
     public void restoreFileFromTrash(FileRestoreRequest request) {
         s3Service.restoreFileFromTrash(request);
     }

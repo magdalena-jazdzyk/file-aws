@@ -4,6 +4,7 @@ import com.app.file.rest.request.FileDeleteMessage;
 import com.app.file.rest.request.FileMoveToTrashRequest;
 import com.app.file.rest.request.FileRestoreRequest;
 import lombok.AllArgsConstructor;
+import org.springframework.amqp.AmqpRejectAndDontRequeueException;
 import org.springframework.stereotype.Service;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
@@ -86,17 +87,20 @@ public class S3Service {
             System.out.println("Plik " + request.getKey() + " już znajduje się w koszu.");
             return;
         }
-
-        s3.copyObject(CopyObjectRequest.builder()
-                .sourceBucket(request.getSourceBucket())
-                .sourceKey(request.getKey())
-                .destinationBucket(request.getDestinationBucket())
-                .destinationKey(request.getKey())
-                .build());
-        s3.deleteObject(DeleteObjectRequest.builder()
-                .bucket(request.getSourceBucket())
-                .key(request.getKey())
-                .build());
+        try {
+            s3.copyObject(CopyObjectRequest.builder()
+                    .sourceBucket(request.getSourceBucket())
+                    .sourceKey(request.getKey())
+                    .destinationBucket(request.getDestinationBucket())
+                    .destinationKey(request.getKey())
+                    .build());
+            s3.deleteObject(DeleteObjectRequest.builder()
+                    .bucket(request.getSourceBucket())
+                    .key(request.getKey())
+                    .build());
+        } catch (NoSuchKeyException e) {
+            throw new AmqpRejectAndDontRequeueException("Failed to move to trash: file not found", e);
+        }
     }
 
     public void configureLifecycleRule(String bucketName) {
@@ -122,22 +126,18 @@ public class S3Service {
     }
 
     public void restoreFileFromTrash(FileRestoreRequest request) {
-        //try {
-            // Tworzenie nowego klucza w kubełku docelowym, jeśli potrzebne
+        s3.copyObject(CopyObjectRequest.builder()
+                .sourceBucket(request.getSourceBucket())
+                .sourceKey(request.getKey())
+                .destinationBucket(request.getDestinationBucket())
+                .destinationKey(request.getKey())
+                .build());
+        s3.deleteObject(DeleteObjectRequest.builder()
+                .bucket(request.getSourceBucket())
+                .key(request.getKey())
+                .build());
 
-            // Kopiowanie pliku z kubełka trash do file_customer
-            s3.copyObject(CopyObjectRequest.builder()
-                    .sourceBucket(request.getSourceBucket())
-                    .sourceKey(request.getKey())
-                    .destinationBucket(request.getDestinationBucket())
-                    .destinationKey(request.getKey())
-                    .build());
-            s3.deleteObject(DeleteObjectRequest.builder()
-                    .bucket(request.getSourceBucket())
-                    .key(request.getKey())
-                    .build());
-
-            System.out.println("Plik przywrócony pomyślnie: " + request.getKey());
+        System.out.println("Plik przywrócony pomyślnie: " + request.getKey());
 
 //        } catch (S3Exception e) {
 //            System.err.println(e.awsErrorDetails().errorMessage());
@@ -148,7 +148,6 @@ public class S3Service {
 
     private boolean checkIfFileExists(String sourceBucket, String objectKey) {
         try {
-            // Sprawdzenie, czy plik istnieje poprzez próbę pobrania jego metadanych
             s3.headObject(HeadObjectRequest.builder()
                     .bucket(sourceBucket)
                     .key(objectKey)
